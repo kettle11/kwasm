@@ -1,0 +1,13 @@
+[package]
+name = "kwasm"
+version = "0.1.0"
+authors = ["Ian Kettlewell <ian.kettlewell@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+wasm_set_stack_pointer = {path = "../wasm_set_stack_pointer"}
+wasm-bindgen = { version = "*", optional = true }
+
+[features]
+default = ["wasm_bindgen_support"]
+wasm_bindgen_support = ["wasm-bindgen"]
