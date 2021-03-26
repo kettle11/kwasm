@@ -7,7 +7,8 @@ edition = "2018"
 [dependencies]
 wasm_set_stack_pointer = {path = "../wasm_set_stack_pointer"}
 wasm-bindgen = { version = "*", optional = true }
+js-sys = { version = "*", optional = true }
 
 [features]
-default = ["wasm_bindgen_support"]
-wasm_bindgen_support = ["wasm-bindgen"]
+default = []
+wasm_bindgen_support = ["wasm-bindgen", "js-sys"]
