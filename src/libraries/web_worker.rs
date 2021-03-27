@@ -7,9 +7,7 @@ use std::{sync::Once, usize};
 static mut WORKER_LIBRARY: KWasmLibrary = KWasmLibrary::null();
 static LIBRARY_INIT: Once = Once::new();
 
-pub const WASM_PAGE_SIZE: usize = 1024 * 64;
-pub static mut THREAD_LOCAL_STORAGE_SIZE: u32 = 0;
-pub static mut THREAD_LOCAL_STORAGE_ALIGNMENT: u32 = 0;
+const WASM_PAGE_SIZE: usize = 1024 * 64;
 
 struct WorkerData {
     entry_point: Option<Box<dyn FnOnce() + Send + 'static>>,
@@ -29,11 +27,12 @@ impl Drop for WorkerData {
                 THREAD_LOCAL_STORAGE_ALIGNMENT as usize,
             )
             .unwrap();
-            std::alloc::dealloc(self.stack_memory, stack_layout);
             std::alloc::dealloc(
                 self.thread_local_storage_memory,
                 thread_local_storage_layout,
             );
+            // Is it ok to deallocate the stack memory here?
+            std::alloc::dealloc(self.stack_memory, stack_layout);
         }
     }
 }
@@ -45,8 +44,6 @@ where
     unsafe {
         LIBRARY_INIT.call_once(|| {
             WORKER_LIBRARY = KWasmLibrary::new(include_str!("web_worker.js"));
-            THREAD_LOCAL_STORAGE_SIZE = WORKER_LIBRARY.message(1);
-            THREAD_LOCAL_STORAGE_ALIGNMENT = WORKER_LIBRARY.message(2);
         });
 
         let f = Box::new(f) as Box<dyn FnOnce() + Send + 'static>;
@@ -62,12 +59,7 @@ where
             // that's not worth implementing now.
             let stack_memory = std::alloc::alloc(stack_layout);
 
-            let thread_local_storage_layout = core::alloc::Layout::from_size_align(
-                THREAD_LOCAL_STORAGE_SIZE as usize,
-                THREAD_LOCAL_STORAGE_ALIGNMENT as usize,
-            )
-            .unwrap();
-            let thread_local_storage_memory = std::alloc::alloc(thread_local_storage_layout);
+            let thread_local_storage_memory = kwasm_alloc_thread_local_storage() as *mut u8;
             (
                 stack_memory,
                 stack_memory.offset(stack_size as isize),

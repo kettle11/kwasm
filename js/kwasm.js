@@ -33,6 +33,15 @@ function initialize(wasm_library_path) {
     ).then(results => {
         kwasm_exports = results.instance.exports;
         kwasm_module = results.module;
+
+        // I suspect this is called automatically an is unneeded to be called here.
+        // In fact including this line results in an error in Firefox.
+        // kwasm_exports.__wasm_init_memory();
+
+        // Setup thread-local storage for the main thread
+        const thread_local_storage = kwasm_exports.kwasm_alloc_thread_local_storage();
+        kwasm_exports.__wasm_init_tls(thread_local_storage);
+
         // Call our start function.
         results.instance.exports.main();
     });
@@ -65,6 +74,12 @@ export function kwasm_message_to_host(library, command, data, data_length) {
                 console.error(string);
                 return;
             }
+            case 3:
+                // Access the thread local storage size global variable created by LLVM.
+                return kwasm_exports.__tls_size.value;
+            case 4:
+                // Access the thread local storage alignment global variable created by LLVM.
+                return kwasm_exports.__tls_align.value;
         }
 
     } else {

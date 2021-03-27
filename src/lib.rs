@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use std::ffi::c_void;
+use std::{cell::RefCell, sync::Once};
 
 pub mod libraries {
     pub mod fetch;
@@ -144,6 +144,31 @@ impl KWasmLibrary {
                 (std::mem::size_of::<T>() * data.len()) as u32,
             )
         }
+    }
+}
+
+// The main thread needs its thread local storage initialized.
+// Web Workers will also use this to allocate their own thread local storage which is deallocated
+// when the worker is dropped.
+pub(crate) static mut THREAD_LOCAL_STORAGE_SIZE: u32 = 0;
+pub(crate) static mut THREAD_LOCAL_STORAGE_ALIGNMENT: u32 = 0;
+static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
+
+#[no_mangle]
+pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
+    unsafe {
+        THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
+            // Command 3 gets thread local storage size, 4 gets thread local storage alignment.
+            THREAD_LOCAL_STORAGE_SIZE = kwasm_message_to_host(1, 3, std::ptr::null_mut(), 0);
+            THREAD_LOCAL_STORAGE_ALIGNMENT = kwasm_message_to_host(1, 4, std::ptr::null_mut(), 0);
+        });
+
+        let thread_local_storage_layout = core::alloc::Layout::from_size_align(
+            THREAD_LOCAL_STORAGE_SIZE as usize,
+            THREAD_LOCAL_STORAGE_ALIGNMENT as usize,
+        )
+        .unwrap();
+        std::alloc::alloc(thread_local_storage_layout) as u32
     }
 }
 

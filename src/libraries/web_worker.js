@@ -27,7 +27,6 @@ function run_on_worker() {
         WebAssembly.instantiate(e.data.kwasm_module, imports).then(results => {
             this.wasm_exports = results.exports;
             this.wasm_exports.set_stack_pointer(e.data.stack_pointer);
-            this.wasm_exports.__wasm_init_memory();
             this.wasm_exports.__wasm_init_tls(e.data.thread_local_storage_pointer);
 
             this.wasm_exports.kwasm_web_worker_entry_point(e.data.entry_point);
