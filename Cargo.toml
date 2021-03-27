@@ -9,6 +9,9 @@ wasm_set_stack_pointer = {path = "../wasm_set_stack_pointer"}
 wasm-bindgen = { version = "*", optional = true }
 js-sys = { version = "*", optional = true }
 
+[dev-dependencies]
+ktasks = {path = "../ktasks"}
+
 [features]
 default = []
 wasm_bindgen_support = ["wasm-bindgen", "js-sys"]
