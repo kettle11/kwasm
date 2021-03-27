@@ -147,6 +147,13 @@ impl KWasmLibrary {
     }
 }
 
+/// This will return 1 for pages that are not cross-origin isolated, or for browsers
+/// that don't support SharedArrayBuffer.
+/// See here for more info about Cross Origin Isolation: https://web.dev/cross-origin-isolation-guide/
+pub fn available_threads() -> u32 {
+    unsafe { kwasm_message_to_host(1, 5, std::ptr::null_mut(), 0) }
+}
+
 // The main thread needs its thread local storage initialized.
 // Web Workers will also use this to allocate their own thread local storage which is deallocated
 // when the worker is dropped.

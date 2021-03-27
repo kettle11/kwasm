@@ -15,8 +15,19 @@ let kwasm_imports = {
     }
 };
 
+var available_threads = 0;
+
 // Load and setup the WebAssembly library.
 function initialize(wasm_library_path) {
+    available_threads = navigator.hardwareConcurrency;
+
+    // If we're not cross origin isolated sending SharedArrayBuffers to other
+    // threads will be prohibited.
+    if (!crossOriginIsolated) {
+        console.warn("kwasm: Not Cross Origin Isolated! Number of available threads set to 1. \n SharedArrayBuffers may be disabled by the browser as well.")
+        available_threads = 1;
+    }
+
     kwasm_memory = new WebAssembly.Memory({ initial: 32, maximum: 16384, shared: true });
 
     let imports = {
@@ -80,6 +91,8 @@ export function kwasm_message_to_host(library, command, data, data_length) {
             case 4:
                 // Access the thread local storage alignment global variable created by LLVM.
                 return kwasm_exports.__tls_align.value;
+            case 5:
+                return available_threads;
         }
 
     } else {
