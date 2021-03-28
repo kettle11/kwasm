@@ -2,10 +2,7 @@
 use wasm_set_stack_pointer;
 
 use crate::*;
-use std::{sync::Once, usize};
-
-static mut WORKER_LIBRARY: KWasmLibrary = KWasmLibrary::null();
-static LIBRARY_INIT: Once = Once::new();
+use std::usize;
 
 const WASM_PAGE_SIZE: usize = 1024 * 64;
 
@@ -42,10 +39,6 @@ where
     F: FnOnce() + Send + 'static,
 {
     unsafe {
-        LIBRARY_INIT.call_once(|| {
-            WORKER_LIBRARY = KWasmLibrary::new(include_str!("web_worker.js"));
-        });
-
         let f = Box::new(f) as Box<dyn FnOnce() + Send + 'static>;
 
         let stack_size = 1 << 20; // 1 MB stack size.
@@ -81,14 +74,13 @@ where
             thread_local_storage_memory as *mut std::ffi::c_void as u32,
         ];
 
-        WORKER_LIBRARY.message_with_slice(0, &mut message_data);
+        HOST_LIBRARY.message_with_slice(6, &mut message_data);
     }
 }
 
 #[no_mangle]
 extern "C" fn kwasm_web_worker_entry_point(callback: u32) {
     unsafe {
-        log(&format!("pointer: {:?}", callback));
         let mut b: Box<WorkerData> = Box::from_raw(callback as *mut std::ffi::c_void as *mut _);
         (b.entry_point.take().unwrap())()
     }

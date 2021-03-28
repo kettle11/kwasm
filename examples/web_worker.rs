@@ -4,7 +4,7 @@
 use kwasm::*;
 
 fn main() {
-    libraries::web_worker::spawn(|| {
+    kwasm::web_worker::spawn(|| {
         log("In worker");
     });
 }

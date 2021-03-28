@@ -3,13 +3,15 @@ use std::{cell::RefCell, sync::Once};
 
 pub mod libraries {
     pub mod fetch;
-    pub mod web_worker;
 }
 
 mod panic_hook;
+pub mod web_worker;
 
 pub type Command = u32;
 pub use panic_hook::setup_panic_hook;
+
+pub(crate) const HOST_LIBRARY: KWasmLibrary = KWasmLibrary(1);
 
 thread_local! {
     /// Data sent from the host.
