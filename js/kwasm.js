@@ -1,12 +1,3 @@
-// Used to pass strings back to the Rust side.
-function pass_string_to_client(string) {
-    const string_data = encoder.encode(string);
-    let length = string_data.byteLength;
-    let pointer = self.kwasm_exports.kwasm_reserve_space(length);
-    const client_string = new Uint8Array(kwasm_memory.buffer, pointer, length);
-    client_string.set(string_data);
-}
-
 function kwasm_stuff() {
     // This is used to decode strings passed from Wasm to Javascript.
     const decoder = new TextDecoder();
@@ -21,7 +12,6 @@ function kwasm_stuff() {
     };
 
     function kwasm_message_to_host(library, command, data, data_length) {
-
         // Creates a view into the memory
         const message_data = new Uint8Array(self.kwasm_memory.buffer, data, data_length);
 
@@ -92,6 +82,7 @@ function kwasm_stuff() {
                 memory: self.kwasm_memory,
             }
         };
+
         imports.env = Object.assign(imports.env, kwasm_imports.env);
 
         fetch(wasm_library_path).then(response =>
@@ -101,12 +92,6 @@ function kwasm_stuff() {
         ).then(results => {
             self.kwasm_exports = results.instance.exports;
             self.kwasm_module = results.module;
-
-            console.log(self.kwasm_exports);
-
-            // I suspect this is called automatically an is unneeded to be called here.
-            // In fact including this line results in an error in Firefox.
-            // kwasm_exports.__wasm_init_memory();
 
             // Setup thread-local storage for the main thread
             const thread_local_storage = kwasm_exports.kwasm_alloc_thread_local_storage();
@@ -121,36 +106,72 @@ function kwasm_stuff() {
     function pass_string_to_client(string) {
         const string_data = encoder.encode(string);
         let length = string_data.byteLength;
-        let pointer = kwasm_exports.kwasm_reserve_space(length);
+        let pointer = self.kwasm_exports.kwasm_reserve_space(length);
         const client_string = new Uint8Array(self.kwasm_memory.buffer, pointer, length);
         client_string.set(string_data);
     }
 
     // If we're a worker thread we'll use this.
     onmessage = function (e) {
-        console.log('Running new worker thread');
-
         let imports = {
             env: {}
         };
-        imports.env = Object.assign(imports.env, kwasm_imports.env);
-        imports.env.memory = e.data.kwasm_memory;
+        let memory_assigned = false;
+
+        // Fill in all wasm-bindgen functions with a placeholder.
+        // This isn't great because it means that `wasm-bindgen` things
+        // won't work in worker threads.
+        WebAssembly.Module.imports(e.data.kwasm_module).forEach(item => {
+            if (imports[item.module] === undefined) {
+                imports[item.module] = {};
+            }
+            if (item.kind == "function") {
+                imports[item.module][item.name] = function () {
+                    console.log(item.name + "is unimplemented in worker thread.");
+                }
+            }
+            if (item.kind == "memory") {
+                imports[item.module][item.name] = e.data.kwasm_memory;
+                memory_assigned = true;
+            }
+
+            // This is a bit hacky to make sure that kwasm bindings still work 
+            // in a worker thread even though `wasm-bindgen` mangles the include name.
+            if (item.name.includes("kwasmmessagetohost")) {
+                imports[item.module][item.name] = kwasm_message_to_host;
+            }
+        });
+
+        imports.env.kwasm_message_to_host = kwasm_message_to_host;
+
+        if (!memory_assigned) {
+            imports.env = {
+                memory: e.data.kwasm_memory
+            };
+        }
 
         self.kwasm_memory = e.data.kwasm_memory;
 
         WebAssembly.instantiate(e.data.kwasm_module, imports).then(results => {
             self.kwasm_exports = results.exports;
-            self.kwasm_exports.set_stack_pointer(e.data.stack_pointer);
-            self.kwasm_exports.__wasm_init_tls(e.data.thread_local_storage_pointer);
+
+            if (self.kwasm_exports.__wbindgen_start) {
+                self.kwasm_exports.__wbindgen_start();
+            } else {
+                self.kwasm_exports.set_stack_pointer(e.data.stack_pointer);
+                self.kwasm_exports.__wasm_init_tls(e.data.thread_local_storage_pointer);
+            }
+
             self.kwasm_exports.kwasm_web_worker_entry_point(e.data.entry_point);
         });
     }
 
     function create_worker(entry_point, stack_pointer, thread_local_storage_pointer) {
+
         let worker = new Worker(kwasm_stuff_blob);
         worker.postMessage({
-            kwasm_memory: kwasm_memory,
-            kwasm_module: kwasm_module,
+            kwasm_memory: self.kwasm_memory,
+            kwasm_module: self.kwasm_module,
             entry_point: entry_point,
             stack_pointer: stack_pointer,
             thread_local_storage_pointer: thread_local_storage_pointer
@@ -160,7 +181,6 @@ function kwasm_stuff() {
     return { kwasm_message_to_host: kwasm_message_to_host, initialize: initialize };
 }
 
-
 const kwasm = kwasm_stuff();
 var kwasm_stuff_blob = URL.createObjectURL(new Blob(
     ['(', kwasm_stuff.toString(), ')()'],
@@ -169,13 +189,11 @@ var kwasm_stuff_blob = URL.createObjectURL(new Blob(
 
 const kwasm_message_to_host = kwasm.kwasm_message_to_host;
 const initialize = kwasm.initialize;
-export { kwasm_message_to_host as kwasm_message_to_host, initialize as initialize };
 
+export { kwasm_message_to_host as kwasm_message_to_host, initialize as initialize };
 export function kwasm_initialize_wasmbindgen(module, memory) {
     self.kwasm_module = module;
     self.kwasm_memory = memory;
-    console.log(self.kwasm_memory);
     self.kwasm_exports = document.kwasm_exports;
 }
-
 export default initialize;

@@ -1,10 +1,11 @@
 use crate::*;
-use std::sync::Once;
 use std::task::{Context, Poll, Waker};
 use std::{future::Future, sync::Arc};
 use std::{pin::Pin, sync::Mutex};
-static mut LIBRARY: KWasmLibrary = KWasmLibrary::null();
-static LIBRARY_INIT: Once = Once::new();
+
+thread_local! {
+    static LIBRARY: KWasmLibrary = KWasmLibrary::new(include_str!("fetch.js"));
+}
 
 pub async fn fetch(path: &str) -> Result<Vec<u8>, ()> {
     FetchFuture {
@@ -35,22 +36,20 @@ impl<'a> Future for FetchFuture {
     type Output = Result<Vec<u8>, ()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        unsafe {
-            LIBRARY_INIT.call_once(|| {
-                LIBRARY = KWasmLibrary::new(include_str!("fetch.js"));
-            });
-        }
-
         let mut inner = self.inner.lock().unwrap();
 
         // Begin the task.
         if !inner.running {
             let raw_ptr = Arc::into_raw(self.inner.clone());
             inner.running = true;
-            unsafe {
-                // Need to send string here as well.
-                LIBRARY.message_with_ptr(0, raw_ptr as *mut Mutex<Inner>, 0);
-            }
+
+            let mut message = [
+                inner._path.as_ptr() as u32,
+                inner._path.len() as u32,
+                raw_ptr as u32,
+            ];
+
+            LIBRARY.with(|l| l.message_with_ptr(0, message.as_mut_ptr(), message.len() as u32));
         }
 
         if let Some(v) = inner.result.take() {

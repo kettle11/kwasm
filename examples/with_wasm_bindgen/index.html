@@ -6,7 +6,7 @@
         import init from './with_wasm_bindgen.js';
         async function run() {
             const wasm = await init();
-            document.kwasm_exports = wasm;
+            wasm.main();
         }
         run();
     </script>
