@@ -1,8 +1,7 @@
-#[allow(unused)]
-use wasm_set_stack_pointer;
-
 use crate::*;
 use std::usize;
+#[allow(unused)]
+use wasm_set_stack_pointer;
 
 const WASM_PAGE_SIZE: usize = 1024 * 64;
 

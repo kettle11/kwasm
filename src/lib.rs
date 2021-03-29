@@ -1,11 +1,16 @@
+use std::cell::RefCell;
 use std::ffi::c_void;
-use std::{cell::RefCell, sync::Once};
+
+#[cfg(any(feature = "wasm_bindgen_support", target_feature = "atomics"))]
+use std::sync::Once;
 
 pub mod libraries {
     pub mod fetch;
 }
 
 mod panic_hook;
+
+#[cfg(target_feature = "atomics")]
 pub mod web_worker;
 
 pub type Command = u32;
@@ -20,27 +25,24 @@ thread_local! {
 }
 
 pub fn log(string: &str) {
+    #[cfg(feature = "wasm_bindgen_support")]
+    initialize_kwasm_for_wasmbindgen();
     #[allow(unused_unsafe)]
-    unsafe {
-        kwasm_message_to_host(
-            1,
-            1,
-            string as *const str as *const c_void as *mut c_void,
-            string.len() as u32,
-        );
-    }
+    HOST_LIBRARY.message_with_ptr(1, string.as_ptr() as *mut u8, string.len() as u32);
 }
 
 pub fn log_error(string: &str) {
+    #[cfg(feature = "wasm_bindgen_support")]
+    initialize_kwasm_for_wasmbindgen();
     #[allow(unused_unsafe)]
-    unsafe {
-        kwasm_message_to_host(
-            1,
-            2,
-            string as *const str as *const c_void as *mut c_void,
-            string.len() as u32,
-        );
-    }
+    HOST_LIBRARY.message_with_ptr(2, string.as_ptr() as *mut u8, string.len() as u32);
+}
+
+/// This will return 1 for pages that are not cross-origin isolated, or for browsers
+/// that don't support SharedArrayBuffer.
+/// See here for more info about Cross Origin Isolation: https://web.dev/cross-origin-isolation-guide/
+pub fn available_threads() -> u32 {
+    HOST_LIBRARY.message(5)
 }
 
 #[cfg(feature = "wasm_bindgen_support")]
@@ -59,15 +61,6 @@ extern "C" {
     ) -> u32;
 }
 
-#[cfg_attr(
-    feature = "wasm_bindgen_support",
-    wasm_bindgen(module = "/js/kwasm.js")
-)]
-#[cfg(feature = "wasm_bindgen_support")]
-extern "C" {
-    pub fn kwasm_set_memory_and_exports();
-}
-
 /// Called by the host to reserve scratch space to pass data into kwasm.
 /// returns a pointer to the allocated data.
 #[no_mangle]
@@ -78,6 +71,21 @@ pub extern "C" fn kwasm_reserve_space(space: usize) -> *mut u8 {
         d.resize(space, 0);
         d.as_mut_ptr()
     })
+}
+#[cfg(feature = "wasm_bindgen_support")]
+fn initialize_kwasm_for_wasmbindgen() {
+    static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
+    THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
+        #[cfg(feature = "wasm_bindgen_support")]
+        #[cfg_attr(
+            feature = "wasm_bindgen_support",
+            wasm_bindgen(module = "/js/kwasm.js")
+        )]
+        extern "C" {
+            pub fn kwasm_initialize_wasmbindgen(module: JsValue, function_table: JsValue);
+        }
+        kwasm_initialize_wasmbindgen(wasm_bindgen::module(), wasm_bindgen::memory());
+    });
 }
 
 #[derive(Copy, Clone)]
@@ -94,14 +102,12 @@ impl KWasmLibrary {
 
     /// Declare a library from JS source.
     pub fn new(source: &str) -> Self {
+        #[cfg(feature = "wasm_bindgen_support")]
+        initialize_kwasm_for_wasmbindgen();
         #[allow(unused_unsafe)]
         unsafe {
-            let library = kwasm_message_to_host(
-                1, // Library 1 is used for declaring other libraries.
-                0,
-                source as *const str as *const c_void as *mut c_void,
-                source.len() as u32,
-            );
+            let library =
+                HOST_LIBRARY.message_with_ptr(0, source.as_ptr() as *mut u8, source.len() as u32);
             KWasmLibrary(library)
         }
     }
@@ -149,27 +155,24 @@ impl KWasmLibrary {
     }
 }
 
-/// This will return 1 for pages that are not cross-origin isolated, or for browsers
-/// that don't support SharedArrayBuffer.
-/// See here for more info about Cross Origin Isolation: https://web.dev/cross-origin-isolation-guide/
-pub fn available_threads() -> u32 {
-    unsafe { kwasm_message_to_host(1, 5, std::ptr::null_mut(), 0) }
-}
-
 // The main thread needs its thread local storage initialized.
 // Web Workers will also use this to allocate their own thread local storage which is deallocated
 // when the worker is dropped.
+#[cfg(target_feature = "atomics")]
 pub(crate) static mut THREAD_LOCAL_STORAGE_SIZE: u32 = 0;
+#[cfg(target_feature = "atomics")]
 pub(crate) static mut THREAD_LOCAL_STORAGE_ALIGNMENT: u32 = 0;
+#[cfg(target_feature = "atomics")]
 static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
 
+#[cfg(target_feature = "atomics")]
 #[no_mangle]
 pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
     unsafe {
         THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
             // Command 3 gets thread local storage size, 4 gets thread local storage alignment.
-            THREAD_LOCAL_STORAGE_SIZE = kwasm_message_to_host(1, 3, std::ptr::null_mut(), 0);
-            THREAD_LOCAL_STORAGE_ALIGNMENT = kwasm_message_to_host(1, 4, std::ptr::null_mut(), 0);
+            THREAD_LOCAL_STORAGE_SIZE = HOST_LIBRARY.message(3);
+            THREAD_LOCAL_STORAGE_ALIGNMENT = HOST_LIBRARY.message(4)
         });
 
         let thread_local_storage_layout = core::alloc::Layout::from_size_align(
@@ -181,6 +184,13 @@ pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
     }
 }
 
+#[cfg(feature = "wasm_bindgen_support")]
+#[wasm_bindgen]
+pub fn module_memory() -> JsValue {
+    wasm_bindgen::memory()
+}
+
+/*
 /// This is a horrible hack.
 /// wasm-bindgen immediately calls main if this isn't here, this gives kwasm a chance
 /// to setup and then main can be called from the Javascript side.
@@ -189,9 +199,4 @@ pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
 use wasm_bindgen::prelude::*;
 #[cfg_attr(feature = "wasm_bindgen_support", wasm_bindgen(start))]
 pub fn kwasm_fake_start() {}
-
-#[cfg(feature = "wasm_bindgen_support")]
-#[no_mangle]
-pub unsafe extern "C" fn kwasm_set_memory_and_exports_rust() {
-    kwasm_set_memory_and_exports()
-}
+*/

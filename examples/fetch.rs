@@ -1,7 +1,14 @@
 use kwasm::*;
 
 fn main() {
-    setup_panic_hook();
-    ktasks::create_workers(4);
-    let _ = libraries::fetch::fetch("Hello");
+    log("HELLO THERE");
+    // setup_panic_hook();
+
+    log(&format!(
+        "AVAILABLE THREADS: {:?}",
+        kwasm::available_threads()
+    ));
+
+    ktasks::create_workers(kwasm::available_threads());
+    ktasks::spawn(async { kwasm::log("ON WORKER THREAD") }).run();
 }

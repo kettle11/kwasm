@@ -1,2 +1,5 @@
 /target
 Cargo.lock
+examples/with_wasm_bindgen/target
+examples/with_wasm_bindgen/web_build/*
+.DS_Store

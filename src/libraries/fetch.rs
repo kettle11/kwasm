@@ -9,7 +9,7 @@ static LIBRARY_INIT: Once = Once::new();
 pub async fn fetch(path: &str) -> Result<Vec<u8>, ()> {
     FetchFuture {
         inner: Arc::new(Mutex::new(Inner {
-            path: path.to_string(),
+            _path: path.to_string(),
             running: false,
             result: None,
             waker: None,
@@ -19,7 +19,7 @@ pub async fn fetch(path: &str) -> Result<Vec<u8>, ()> {
 }
 
 struct Inner {
-    path: String,
+    _path: String,
     running: bool,
     result: Option<Vec<u8>>,
     waker: Option<Waker>,
