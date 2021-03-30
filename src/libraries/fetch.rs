@@ -49,7 +49,9 @@ impl<'a> Future for FetchFuture {
                 raw_ptr as u32,
             ];
 
-            LIBRARY.with(|l| l.message_with_ptr(0, message.as_mut_ptr(), message.len() as u32));
+            log(&format!("RAW PTR: {:?}", raw_ptr as u32));
+
+            LIBRARY.with(|l| l.message_with_slice(0, &mut message));
         }
 
         if let Some(v) = inner.result.take() {
@@ -64,11 +66,15 @@ impl<'a> Future for FetchFuture {
 /// Called by the host to reserve scratch space to pass data into kwasm.
 /// returns a pointer to the allocated data.
 #[no_mangle]
-extern "C" fn complete_fetch(inner_data: *const c_void) {
+extern "C" fn kwasm_complete_fetch(inner_data: u32) {
+    log(&format!("INNER DATA: {:?}", inner_data));
+
     unsafe {
         let arc = Arc::<Mutex<Inner>>::from_raw(inner_data as *const Mutex<Inner>);
+
         let waker = {
             let mut inner = arc.lock().unwrap();
+
             DATA_FROM_HOST.with(|d| {
                 let data = d.replace(Vec::new());
                 inner.result = Some(data);
