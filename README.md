@@ -1,4 +1,4 @@
-** Don't use yet **
+**Don't use yet**
 `kwasm` is very much in flux and its design is still being figured out.
 
 `kwasm` is a spartan framework to facilitate communication between Javascript and Rust WebAssembly.
