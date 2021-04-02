@@ -22,6 +22,7 @@ function kwasm_stuff() {
                 case 0: {
                     // Create a new library
                     const decoded_string = decoder.decode(new Uint8Array(message_data));
+
                     let library = new Function("kwasm_exports", "kwasm_memory", "kwasm_module", "kwasm_helpers", decoded_string)
                         (self.kwasm_exports, self.kwasm_memory, self.kwasm_module, kwasm_helpers);
                     return kwasm_libraries.push(library) - 1;
@@ -90,12 +91,18 @@ function kwasm_stuff() {
         ).then(bytes =>
             WebAssembly.instantiate(bytes, imports)
         ).then(results => {
+            // If this module exports memory use that instead.
+            if (results.instance.exports.memory) {
+                self.kwasm_memory = results.instance.exports.memory;
+            }
             self.kwasm_exports = results.instance.exports;
             self.kwasm_module = results.module;
 
             // Setup thread-local storage for the main thread
-            const thread_local_storage = kwasm_exports.kwasm_alloc_thread_local_storage();
-            self.kwasm_exports.__wasm_init_tls(thread_local_storage);
+            if (kwasm_exports.kwasm_alloc_thread_local_storage) {
+                const thread_local_storage = kwasm_exports.kwasm_alloc_thread_local_storage();
+                self.kwasm_exports.__wasm_init_tls(thread_local_storage);
+            }
 
             // Call our start function.
             results.instance.exports.main();
