@@ -17,12 +17,10 @@ pub mod web_worker;
 pub type Command = u32;
 pub use panic_hook::setup_panic_hook;
 
-thread_local! {
-    pub(crate) static HOST_LIBRARY: KWasmLibrary = KWasmLibrary {
-        library: Cell::new(1),
-        source: "",
-    };
-}
+pub(crate) const HOST_LIBRARY: KWasmLibrary = KWasmLibrary {
+    library: Cell::new(1),
+    source: "",
+};
 
 thread_local! {
     /// Data sent from the host.
@@ -33,24 +31,20 @@ thread_local! {
 pub fn log(string: &str) {
     #[cfg(feature = "wasm_bindgen_support")]
     initialize_kwasm_for_wasmbindgen();
-    HOST_LIBRARY.with(|l| {
-        l.message_with_ptr(1, string.as_ptr() as *mut u8, string.len() as u32);
-    });
+    HOST_LIBRARY.message_with_ptr(1, string.as_ptr() as *mut u8, string.len() as u32);
 }
 
 pub fn log_error(string: &str) {
-    HOST_LIBRARY.with(|l| {
-        #[cfg(feature = "wasm_bindgen_support")]
-        initialize_kwasm_for_wasmbindgen();
-        l.message_with_ptr(2, string.as_ptr() as *mut u8, string.len() as u32);
-    });
+    #[cfg(feature = "wasm_bindgen_support")]
+    initialize_kwasm_for_wasmbindgen();
+    HOST_LIBRARY.message_with_ptr(2, string.as_ptr() as *mut u8, string.len() as u32);
 }
 
 /// This will return 1 for pages that are not cross-origin isolated, or for browsers
 /// that don't support SharedArrayBuffer.
 /// See here for more info about Cross Origin Isolation: https://web.dev/cross-origin-isolation-guide/
 pub fn available_threads() -> u32 {
-    HOST_LIBRARY.with(|l| l.message(5))
+    HOST_LIBRARY.message(5)
 }
 
 #[cfg(feature = "wasm_bindgen_support")]
@@ -182,8 +176,8 @@ pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
     unsafe {
         THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
             // Command 3 gets thread local storage size, 4 gets thread local storage alignment.
-            THREAD_LOCAL_STORAGE_SIZE = HOST_LIBRARY.with(|l| l.message(3));
-            THREAD_LOCAL_STORAGE_ALIGNMENT = HOST_LIBRARY.with(|l| l.message(4));
+            THREAD_LOCAL_STORAGE_SIZE = HOST_LIBRARY.message(3);
+            THREAD_LOCAL_STORAGE_ALIGNMENT = HOST_LIBRARY.message(4);
         });
 
         let thread_local_storage_layout = core::alloc::Layout::from_size_align(

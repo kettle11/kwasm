@@ -91,7 +91,7 @@ where
         thread_local_storage_memory as *mut std::ffi::c_void as u32,
     ];
 
-    HOST_LIBRARY.with(|l| l.message_with_slice(6, &mut message_data));
+    HOST_LIBRARY.message_with_slice(6, &mut message_data);
 }
 
 #[no_mangle]
