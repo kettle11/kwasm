@@ -28,6 +28,10 @@ impl Console {
     pub fn log_js_string(js_string: &JSString) {
         CONSOLE.with(|c| c.log_js_string(js_string))
     }
+
+    pub fn log_js_string2(js_string0: &JSString, js_string1: &JSString) {
+        CONSOLE.with(|c| c.log_js_string2(js_string0, js_string1))
+    }
 }
 
 impl ConsoleInner {
@@ -57,6 +61,18 @@ impl ConsoleInner {
         if self.console_js_object.is_null() {
             self.initialize()
         }
-        self.log_js_object.call_1_arg(js_string.get_js_object());
+        self.log_js_object
+            .call_1_arg(&self.console_js_object, js_string.get_js_object());
+    }
+
+    pub fn log_js_string2(&self, js_string0: &JSString, js_string1: &JSString) {
+        if self.console_js_object.is_null() {
+            self.initialize()
+        }
+        self.log_js_object.call_2_arg(
+            &self.console_js_object,
+            js_string0.get_js_object(),
+            js_string1.get_js_object(),
+        );
     }
 }

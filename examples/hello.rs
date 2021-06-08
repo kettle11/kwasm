@@ -21,7 +21,9 @@ fn main() {
     let log_function = console.get_property(&LOG_STR);
 
     const MESSAGE: JSString = JSString::new("HI WORLD!!!");
-    log_function.call_1_arg(&MESSAGE);
+    log_function.call_1_arg(&console, &MESSAGE);
 
     Console::log("LOGGING FROM THE CONSOLE");
+
+    Console::log_js_string2(&JSString::new("HELLO0"), &JSString::new("HELLO1"));
 }

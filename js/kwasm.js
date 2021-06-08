@@ -30,21 +30,12 @@ function kwasm_stuff() {
         }
     };
 
-    /*
-    let call_js = function (object, f, args_count, arg0, arg1, arg2,) {
-        // let args = [arg0, arg1, arg2, 
-        let a0 = kwasm_js_objects[arg0];
-        let a1 = kwasm_js_objects[arg1];
-        let a2 = kwasm_js_objects[arg2];
-        let f = kwasm_js_objects[object];
-        let result = f(a0, a1, a2);
-        if (result == undefined) {
-            return 0;
-        } else {
-            return kwasm_helpers.new_js_object(result);
-        }
+    function call_js(function_object, this_object, ...args) {
+        let f = kwasm_js_objects[function_object];
+        let this_object0 = kwasm_js_objects[this_object];
+        let args0 = args.map(a => kwasm_js_objects[a]);
+        f.call(this_object0, ...args0);
     }
-    */
 
     let kwasm_import_functions = {
         kwasm_free_js_object: function (index) {
@@ -70,30 +61,18 @@ function kwasm_stuff() {
                 return kwasm_helpers.new_js_object(property_object);
             }
         },
-        kwasm_call_js_object_2_args: function (object, arg0, arg1) {
-            let a0 = kwasm_js_objects[arg0];
-            let a1 = kwasm_js_objects[arg1];
-            let f = kwasm_js_objects[object];
-            let result = f(a0, a1);
-            if (result == undefined) {
-                return 0;
-            } else {
-                return kwasm_helpers.new_js_object(result);
-            }
+        kwasm_call_js_object_0_args: function (function_object, this_object) {
+            call_js(function_object, this_object)
         },
-        kwasm_call_js_object_3_args: function (object, arg0, arg1, arg2) {
-            let a0 = kwasm_js_objects[arg0];
-            let a1 = kwasm_js_objects[arg1];
-            let a2 = kwasm_js_objects[arg2];
-            let f = kwasm_js_objects[object];
-            let result = f(a0, a1, a2);
-            if (result == undefined) {
-                return 0;
-            } else {
-                return kwasm_helpers.new_js_object(result);
-            }
+        kwasm_call_js_object_1_args: function (function_object, this_object, arg0) {
+            call_js(function_object, this_object, arg0)
         },
-        kwasm_call_js_object_1_args: call_js,
+        kwasm_call_js_object_2_args: function (function_object, this_object, arg0, arg1) {
+            call_js(function_object, this_object, arg0, arg1)
+        },
+        kwasm_call_js_object_3_args: function (function_object, this_object, arg0, arg1, arg2) {
+            call_js(function_object, this_object, arg0, arg1, arg2)
+        },
         kwasm_message_to_host: function (library, command, data, data_length) {
             // Creates a view into the memory
             const message_data = new Uint8Array(self.kwasm_memory.buffer, data, data_length);
@@ -277,6 +256,7 @@ const kwasm_message_to_host = kwasm.kwasm_message_to_host;
 const kwasm_free_js_object = kwasm.kwasm_free_js_object;
 const kwasm_js_object_property = kwasm.kwasm_js_object_property;
 const kwasm_new_string = kwasm.kwasm_new_string;
+const kwasm_call_js_object_0_args = kwasm.kwasm_call_js_object_1_args;
 const kwasm_call_js_object_1_args = kwasm.kwasm_call_js_object_1_args;
 const kwasm_call_js_object_2_args = kwasm.kwasm_call_js_object_2_args;
 const kwasm_call_js_object_3_args = kwasm.kwasm_call_js_object_3_args;
@@ -285,6 +265,7 @@ export {
     kwasm_free_js_object as kwasm_free_js_object,
     kwasm_js_object_property as kwasm_js_object_property,
     kwasm_new_string as kwasm_new_string,
+    kwasm_call_js_object_0_args as kwasm_call_js_object_0_args,
     kwasm_call_js_object_1_args as kwasm_call_js_object_1_args,
     kwasm_call_js_object_2_args as kwasm_call_js_object_2_args,
     kwasm_call_js_object_3_args as kwasm_call_js_object_3_args,

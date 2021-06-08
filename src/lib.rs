@@ -1,7 +1,8 @@
 //! Kwasm helps Rust code interact with a web-browser host environment 
 //! in a light-weight and reusable way.
 //! The library also helps facilitate multi-threaded browser code.
-//! It can work alongside `wasm-bidngen` or stand-alone.
+//! It can work alongside `wasm-bindgen` or stand-alone.
+//! Kwasm uses eval to initialize Javascript code from Rust libraries.
 
 use std::cell::Cell;
 use std::cell::RefCell;
