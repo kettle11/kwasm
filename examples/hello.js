@@ -8,6 +8,9 @@ function receive_message(command, data) {
     if (command == 1) {
         console.log("COMMAND 1");
     }
+    if (command == 2) {
+        kwasm_helpers.pass_string_to_client("HI CLIENT");
+    }
     return 0;
 }
 

@@ -1,3 +1,8 @@
+//! Kwasm helps Rust code interact with a web-browser host environment 
+//! in a light-weight and reusable way.
+//! The library also helps facilitate multi-threaded browser code.
+//! It can work alongside `wasm-bidngen` or stand-alone.
+
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -6,10 +11,16 @@ use std::ffi::c_void;
 use std::sync::Once;
 
 pub mod libraries {
+    pub mod console;
     pub mod fetch;
+    pub use console::*;
+    pub use fetch::*;
 }
 
+mod js_object;
 mod panic_hook;
+
+pub use js_object::*;
 
 #[cfg(target_feature = "atomics")]
 pub mod web_worker;

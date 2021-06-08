@@ -4,6 +4,7 @@ use kwasm::*;
 thread_local! {
     static LIBRARY: KWasmLibrary = KWasmLibrary::new(include_str!("test.js"));
 }
+
 fn main() {
     kwasm::log("HELLO WORLD");
     let js_value = register_string("Hi there");

@@ -76,7 +76,7 @@ extern "C" fn kwasm_complete_fetch(inner_data: u32) {
             let mut inner = arc.lock().unwrap();
 
             DATA_FROM_HOST.with(|d| {
-                let data = d.replace(Vec::new());
+                let data = d.take();
                 inner.result = Some(data);
             });
             inner.waker.take().unwrap()
