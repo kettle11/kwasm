@@ -3,15 +3,7 @@ use kwasm::*;
 
 fn main() {
     setup_panic_hook();
-    kwasm::log("HELLO WORLD!");
-    let library = KWasmLibrary::new(include_str!("hello.js"));
-    library.message(0);
-    library.message(2);
-    kwasm::DATA_FROM_HOST.with(|d| {
-        let d = d.take();
-        let s = std::str::from_utf8(&d).unwrap();
-        kwasm::log(&format!("RECEIVED: {}", s))
-    });
+    console::log("HELLO WORLD!");
 
     //const document_str: JSString = JSString::new("document");
     const CONSOLE_STR: JSString = JSString::new("console");
@@ -25,6 +17,5 @@ fn main() {
 
     console::log("LOGGING FROM THE CONSOLE");
 
-    console::log_js_string2(&JSString::new("HELLO0"), &JSString::new("HELLO1"));
     eval("console.log('EVAL SEEMS TO WORK')");
 }

@@ -84,14 +84,13 @@ where
         thread_local_storage_memory,
     });
 
-    // Pass the closure and stack pointer
-    let mut message_data: [u32; 3] = [
-        Box::leak(worker_data) as *mut _ as *mut std::ffi::c_void as u32,
-        stack_pointer as *mut std::ffi::c_void as u32,
-        thread_local_storage_memory as *mut std::ffi::c_void as u32,
-    ];
-
-    HOST_LIBRARY.message_with_slice(6, &mut message_data);
+    unsafe {
+        kwasm_new_worker(
+            Box::leak(worker_data) as *mut _ as *mut std::ffi::c_void as u32,
+            stack_pointer as *mut std::ffi::c_void as u32,
+            thread_local_storage_memory as *mut std::ffi::c_void as u32,
+        );
+    }
 }
 
 #[no_mangle]

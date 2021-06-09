@@ -7,7 +7,6 @@
 //! It can work alongside `wasm-bindgen` or stand-alone.
 //! Kwasm uses eval to initialize Javascript code from Rust libraries.
 
-use std::cell::Cell;
 use std::cell::RefCell;
 use std::ffi::c_void;
 
@@ -32,12 +31,8 @@ pub use js_object::*;
 pub mod web_worker;
 
 pub type Command = u32;
+use libraries::eval;
 pub use panic_hook::setup_panic_hook;
-
-pub(crate) const HOST_LIBRARY: KWasmLibrary = KWasmLibrary {
-    library: Cell::new(1),
-    source: "",
-};
 
 thread_local! {
     /// Data sent from the host.
@@ -49,7 +44,19 @@ thread_local! {
 /// that don't support SharedArrayBuffer.
 /// See here for more info about Cross Origin Isolation: https://web.dev/cross-origin-isolation-guide/
 pub fn available_threads() -> u32 {
-    HOST_LIBRARY.message(5)
+    let result = eval(
+        r#"
+            let result;
+            if (!crossOriginIsolated) {
+                result = 1;
+            } else {
+                result = navigator.hardwareConcurrency;
+            }
+            result
+        "#,
+    )
+    .unwrap();
+    result.get_value_u32()
 }
 
 #[cfg(feature = "wasm_bindgen_support")]
@@ -79,6 +86,7 @@ pub extern "C" fn kwasm_reserve_space(space: usize) -> *mut u8 {
         d.as_mut_ptr()
     })
 }
+
 #[cfg(feature = "wasm_bindgen_support")]
 fn initialize_kwasm_for_wasmbindgen() {
     static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
@@ -97,74 +105,6 @@ fn initialize_kwasm_for_wasmbindgen() {
     });
 }
 
-/// A KWasm library is a light-weight way to communicate with the Javascript of the host browser.
-/// Declare a KWasm library like so:
-/// ``` static LIBRARY: KWasmLibrary = KWasmLibrary::new(include_str!("fetch.js"));
-#[repr(C)]
-pub struct KWasmLibrary {
-    library: Cell<u32>,
-    source: &'static str,
-}
-
-impl KWasmLibrary {
-    pub const fn new(source: &'static str) -> Self {
-        Self {
-            library: Cell::new(0),
-            source,
-        }
-    }
-
-    fn message_inner(&self, command: Command, data: *mut c_void, data_length: u32) -> u32 {
-        #[cfg(feature = "wasm_bindgen_support")]
-        initialize_kwasm_for_wasmbindgen();
-
-        #[allow(unused_unsafe)]
-        unsafe {
-            if self.library.get() == 0 {
-                self.library.set(kwasm_message_to_host(
-                    1,
-                    0,
-                    self.source.as_ptr() as *mut u8 as *mut _,
-                    self.source.len() as u32,
-                ));
-            }
-            kwasm_message_to_host(self.library.get(), command, data, data_length)
-        }
-    }
-
-    pub fn message(&self, command: Command) -> u32 {
-        self.message_inner(command, std::ptr::null_mut(), 0)
-    }
-
-    pub fn message_with_ptr<T>(&self, command: Command, data: *mut T, len: u32) -> u32 {
-        self.message_inner(command, data as *mut c_void, len)
-    }
-
-    pub fn message_with_slice<T>(&self, command: Command, data: &mut [T]) -> u32 {
-        self.message_inner(
-            command,
-            data.as_mut_ptr() as *mut c_void,
-            (std::mem::size_of::<T>() * data.len()) as u32,
-        )
-    }
-
-    /*
-    /// Sends a message with a pointer to the &mut T and data length set to the size of T.
-    /// This is useful for quickly sending a data structure from the stack.
-    pub fn message_with_ref<T>(&self, command: Command, data: &mut T) -> u32 {
-        #[allow(unused_unsafe)]
-        unsafe {
-            kwasm_message_to_host(
-                self.0,
-                command,
-                data as &mut T as *mut T as *mut c_void,
-                std::mem::size_of::<T>() as u32,
-            )
-        }
-    }
-    */
-}
-
 // The main thread needs its thread local storage initialized.
 // Web Workers will also use this to allocate their own thread local storage which is deallocated
 // when the worker is dropped.
@@ -181,8 +121,12 @@ pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
     unsafe {
         THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
             // Command 3 gets thread local storage size, 4 gets thread local storage alignment.
-            THREAD_LOCAL_STORAGE_SIZE = HOST_LIBRARY.message(3);
-            THREAD_LOCAL_STORAGE_ALIGNMENT = HOST_LIBRARY.message(4);
+            THREAD_LOCAL_STORAGE_SIZE = eval("self.kwasm_exports.__tls_size.value")
+                .unwrap()
+                .get_value_u32();
+            THREAD_LOCAL_STORAGE_ALIGNMENT = eval("self.kwasm_exports.__tls_align.value")
+                .unwrap()
+                .get_value_u32();
         });
 
         let thread_local_storage_layout = core::alloc::Layout::from_size_align(
@@ -200,4 +144,6 @@ pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
 /// It'd be nice to remove this.
 /// This could be skipped when using `wasm-bindgen` without workers.
 #[cfg_attr(feature = "wasm_bindgen_support", wasm_bindgen(start))]
-pub fn kwasm_fake_start() {}
+pub fn kwasm_fake_start() {
+    initialize_kwasm_for_wasmbindgen();
+}

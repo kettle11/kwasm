@@ -1,29 +1,34 @@
 use std::{cell::Cell, ffi::c_void};
 
+#[cfg(feature = "wasm_bindgen_support")]
+use wasm_bindgen::prelude::*;
+
 #[cfg_attr(
     feature = "wasm_bindgen_support",
     wasm_bindgen(module = "/js/kwasm.js")
 )]
 extern "C" {
-    pub fn kwasm_new_string(data: *const u8, data_length: u32) -> u32;
-    pub fn kwasm_free_js_object(object: u32);
-    pub fn kwasm_js_object_property(function_object: u32, property: u32) -> u32;
-
-    #[link_name = "kwasm_call_js_with_args"]
-    pub fn kwasm_call_js_with_args(
+    pub(crate) fn kwasm_new_string(data: *const u8, data_length: u32) -> u32;
+    pub(crate) fn kwasm_free_js_object(object: u32);
+    pub(crate) fn kwasm_js_object_property(function_object: u32, property: u32) -> u32;
+    pub(crate) fn kwasm_get_js_object_value_u32(object: u32) -> u32;
+    pub(crate) fn kwasm_call_js_with_args(
         function_object: u32,
         this: u32,
         args_data: *const c_void,
         data_length: u32,
     ) -> u32;
-
-    #[link_name = "kwasm_call_js_with_args_raw"]
-    pub fn kwasm_call_js_with_args_raw(
+    pub(crate) fn kwasm_call_js_with_args_raw(
         function_object: u32,
         this: u32,
         args_data: *const c_void,
         data_length: u32,
     ) -> u32;
+    pub(crate) fn kwasm_new_worker(
+        entry_point: u32,
+        stack_pointer: u32,
+        thread_local_storage_pointer: u32,
+    );
 }
 
 fn kwasm_call_js_with_args0(function_object: u32, this: u32, args: &[u32]) -> u32 {
@@ -73,6 +78,11 @@ impl JSObject {
 
     pub fn index(&self) -> u32 {
         self.index.get()
+    }
+
+    // If this value is a u32, return it as a u32
+    pub fn get_value_u32(&self) -> u32 {
+        unsafe { kwasm_get_js_object_value_u32(self.index.get()) }
     }
 
     /// Replaces the inner JSObject with the new JSObject.

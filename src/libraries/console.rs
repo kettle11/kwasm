@@ -26,7 +26,7 @@ impl ConsoleInner {
         self.console_js_object
             .swap(&JS_SELF.get_property(&CONSOLE_STR));
         self.error_js_object
-            .swap(&JS_SELF.get_property(&JSString::new("error")));
+            .swap(&self.console_js_object.get_property(&JSString::new("error")));
         self.log_js_object
             .swap(&self.console_js_object.get_property(&LOG_STR));
     }
