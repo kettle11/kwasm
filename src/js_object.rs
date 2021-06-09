@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::{cell::Cell, ffi::c_void};
 
 #[cfg_attr(
     feature = "wasm_bindgen_support",
@@ -9,24 +9,43 @@ extern "C" {
     pub fn kwasm_free_js_object(object: u32);
     pub fn kwasm_js_object_property(function_object: u32, property: u32) -> u32;
 
-    #[link_name = "kwasm_call_js_object_0_args"]
-    pub fn kwasm_call_js_object_0_args(function_object: u32, this: u32, arg0: u32) -> u32;
-    #[link_name = "kwasm_call_js_object_1_args"]
-    pub fn kwasm_call_js_object_1_args(function_object: u32, this: u32, arg0: u32) -> u32;
-    #[link_name = "kwasm_call_js_object_2_args"]
-    pub fn kwasm_call_js_object_2_args(
+    #[link_name = "kwasm_call_js_with_args"]
+    pub fn kwasm_call_js_with_args(
         function_object: u32,
         this: u32,
-        arg0: u32,
-        arg1: u32,
+        args_data: *const c_void,
+        data_length: u32,
     ) -> u32;
-    #[link_name = "kwasm_call_js_object_3_args"]
-    pub fn kwasm_call_js_object_3_args(
+
+    #[link_name = "kwasm_call_js_with_args_raw"]
+    pub fn kwasm_call_js_with_args_raw(
         function_object: u32,
         this: u32,
-        arg0: u32,
-        arg2: u32,
+        args_data: *const c_void,
+        data_length: u32,
     ) -> u32;
+}
+
+fn kwasm_call_js_with_args0(function_object: u32, this: u32, args: &[u32]) -> u32 {
+    unsafe {
+        kwasm_call_js_with_args(
+            function_object,
+            this,
+            args.as_ptr() as *const c_void,
+            args.len() as u32,
+        )
+    }
+}
+
+fn kwasm_call_js_with_args_raw0(function_object: u32, this: u32, args: &[u32]) -> u32 {
+    unsafe {
+        kwasm_call_js_with_args_raw(
+            function_object,
+            this,
+            args.as_ptr() as *const c_void,
+            args.len() as u32,
+        )
+    }
 }
 
 /// Window.self
@@ -50,6 +69,10 @@ impl JSObject {
                 )),
             }
         }
+    }
+
+    pub fn index(&self) -> u32 {
+        self.index.get()
     }
 
     /// Replaces the inner JSObject with the new JSObject.
@@ -84,19 +107,25 @@ impl JSObject {
         }
     }
 
+    /// Call a function with a series of u32s as
+    pub fn call_raw(&self, this: &impl JSObjectTrait, args: &[u32]) -> Option<Self> {
+        let result =
+            kwasm_call_js_with_args_raw0(self.index.get(), this.get_js_object().index.get(), args);
+        Self::check_result(result)
+    }
+
     /// Call this as a function with one arg.
     pub fn call_1_arg(
         &self,
         this: &impl JSObjectTrait,
         argument: &impl JSObjectTrait,
     ) -> Option<Self> {
-        let result = unsafe {
-            kwasm_call_js_object_1_args(
-                self.index.get(),
-                this.get_js_object().index.get(),
-                argument.get_js_object().index.get(),
-            )
-        };
+        let result = kwasm_call_js_with_args0(
+            self.index.get(),
+            this.get_js_object().index.get(),
+            &[argument.get_js_object().index.get()],
+        );
+
         Self::check_result(result)
     }
 
@@ -107,14 +136,15 @@ impl JSObject {
         arg0: &impl JSObjectTrait,
         arg1: &impl JSObjectTrait,
     ) -> Option<Self> {
-        let result = unsafe {
-            kwasm_call_js_object_2_args(
-                self.index.get(),
-                this.get_js_object().index.get(),
+        let result = kwasm_call_js_with_args0(
+            self.index.get(),
+            this.get_js_object().index.get(),
+            &[
                 arg0.get_js_object().index.get(),
                 arg1.get_js_object().index.get(),
-            )
-        };
+            ],
+        );
+
         Self::check_result(result)
     }
 }
@@ -161,32 +191,3 @@ impl<'a> JSObjectTrait for JSString<'a> {
         &self.js_object
     }
 }
-
-/*
-pub struct JSFunction<'a> {
-    string: &'a str,
-    js_object: JSObject,
-}
-
-impl<'a> JSFunction<'a> {
-    pub const fn new(string: &'a str) -> Self {
-        Self {
-            string,
-            js_object: JSObject::null(),
-        }
-    }
-}
-
-impl<'a> JSFunction<'a> {
-    fn initialize(&self) {}
-
-    /// Call this as a function with one arg.
-    /// Returns a JSObject
-    pub fn call_1_arg(&self, argument: &impl JSObjectTrait) -> Option<JSObject> {
-        if self.js_object.is_null() {
-            self.initialize()
-        }
-        self.js_object.call_1_arg(argument)
-    }
-}
-*/

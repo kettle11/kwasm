@@ -1,16 +1,17 @@
+use crate::libraries::eval;
 use crate::*;
 use std::task::{Context, Poll, Waker};
 use std::{future::Future, sync::Arc};
 use std::{pin::Pin, sync::Mutex};
 
 thread_local! {
-    static LIBRARY: KWasmLibrary = KWasmLibrary::new(include_str!("fetch.js"));
+    static FETCH_FUNCTION: JSObject = JSObject::null();
 }
 
 pub async fn fetch(path: &str) -> Result<Vec<u8>, ()> {
     FetchFuture {
         inner: Arc::new(Mutex::new(Inner {
-            _path: path.to_string(),
+            path: path.to_string(),
             running: false,
             result: None,
             waker: None,
@@ -20,7 +21,7 @@ pub async fn fetch(path: &str) -> Result<Vec<u8>, ()> {
 }
 
 struct Inner {
-    _path: String,
+    path: String,
     running: bool,
     result: Option<Vec<u8>>,
     waker: Option<Waker>,
@@ -28,7 +29,7 @@ struct Inner {
 
 struct FetchFuture {
     // This needs to be shared with a closure passed to the host
-    // that fils in the result and drops the closure later.
+    // that fills in the result and drops the closure later.
     inner: Arc<Mutex<Inner>>,
 }
 
@@ -43,15 +44,17 @@ impl<'a> Future for FetchFuture {
             let raw_ptr = Arc::into_raw(self.inner.clone());
             inner.running = true;
 
-            let mut message = [
-                inner._path.as_ptr() as u32,
-                inner._path.len() as u32,
-                raw_ptr as u32,
-            ];
+            let js_string = JSString::new(&inner.path);
 
-            log(&format!("RAW PTR: {:?}", raw_ptr as u32));
-
-            LIBRARY.with(|l| l.message_with_slice(0, &mut message));
+            FETCH_FUNCTION.with(|f| {
+                if f.is_null() {
+                    f.swap(&eval(include_str!("fetch.js")).unwrap())
+                }
+                f.call_raw(
+                    &JSObject::null(),
+                    &[js_string.get_js_object().index(), raw_ptr as u32],
+                )
+            });
         }
 
         if let Some(v) = inner.result.take() {
@@ -67,8 +70,6 @@ impl<'a> Future for FetchFuture {
 /// returns a pointer to the allocated data.
 #[no_mangle]
 extern "C" fn kwasm_complete_fetch(inner_data: u32) {
-    log(&format!("INNER DATA: {:?}", inner_data));
-
     unsafe {
         let arc = Arc::<Mutex<Inner>>::from_raw(inner_data as *const Mutex<Inner>);
 
@@ -81,6 +82,7 @@ extern "C" fn kwasm_complete_fetch(inner_data: u32) {
             });
             inner.waker.take().unwrap()
         };
+
         // Drop the lock before we wake the task that will also try to access the lock.
         waker.wake(); // Wake up our task.
     }

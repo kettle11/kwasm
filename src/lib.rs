@@ -1,5 +1,8 @@
-//! Kwasm helps Rust code interact with a web-browser host environment 
+//! Kwasm helps Rust code interact with a web-browser host environment
 //! in a light-weight and reusable way.
+//!
+//! Kwasm allows flexible communication with Javascript, but
+//! does not attempt to replace all Javascript with Rust.
 //! The library also helps facilitate multi-threaded browser code.
 //! It can work alongside `wasm-bindgen` or stand-alone.
 //! Kwasm uses eval to initialize Javascript code from Rust libraries.
@@ -13,8 +16,10 @@ use std::sync::Once;
 
 pub mod libraries {
     pub mod console;
+    pub mod eval;
     pub mod fetch;
     pub use console::*;
+    pub use eval::*;
     pub use fetch::*;
 }
 
@@ -38,18 +43,6 @@ thread_local! {
     /// Data sent from the host.
     /// Unique to this Wasm thread.
     pub static DATA_FROM_HOST: RefCell<Vec<u8>> = RefCell::new(Vec::new());
-}
-
-pub fn log(string: &str) {
-    #[cfg(feature = "wasm_bindgen_support")]
-    initialize_kwasm_for_wasmbindgen();
-    HOST_LIBRARY.message_with_ptr(1, string.as_ptr() as *mut u8, string.len() as u32);
-}
-
-pub fn log_error(string: &str) {
-    #[cfg(feature = "wasm_bindgen_support")]
-    initialize_kwasm_for_wasmbindgen();
-    HOST_LIBRARY.message_with_ptr(2, string.as_ptr() as *mut u8, string.len() as u32);
 }
 
 /// This will return 1 for pages that are not cross-origin isolated, or for browsers

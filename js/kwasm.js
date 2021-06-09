@@ -6,8 +6,13 @@ function kwasm_stuff() {
     // The first library is used for null, the second is used by messages that create new libraries.
     var kwasm_libraries = [undefined, undefined];
     var available_threads = 0;
+
     var kwasm_js_objects = [null, self];
     var kwasm_js_objects_free_indices = [];
+
+    self.kwasm_get_object = function (index) {
+        return kwasm_js_objects[index];
+    }
 
     let kwasm_helpers = {
         pass_string_to_client: function (string) {
@@ -30,17 +35,10 @@ function kwasm_stuff() {
         }
     };
 
-    function call_js(function_object, this_object, ...args) {
-        let f = kwasm_js_objects[function_object];
-        let this_object0 = kwasm_js_objects[this_object];
-        let args0 = args.map(a => kwasm_js_objects[a]);
-        f.call(this_object0, ...args0);
-    }
 
     let kwasm_import_functions = {
         kwasm_free_js_object: function (index) {
             if (index > 1) {
-                let item = kwasm_js_objects[index];
                 kwasm_js_objects[index] = null;
                 kwasm_js_objects_free_indices.push(index);
             }
@@ -50,9 +48,37 @@ function kwasm_stuff() {
             const decoded_string = decoder.decode(new Uint8Array(message_data));
             return kwasm_helpers.new_js_object(decoded_string);
         },
-        kwasm_js_object_property: function (index, property) {
-            let object = kwasm_js_objects[index];
-            let property_name = kwasm_js_objects[property];
+        kwasm_call_js_with_args_raw: function (function_object, this_object, arg_data_ptr, args_length) {
+            // Calls a function but directly passes the u32 args instead of turning
+            // them into JS objects first.
+            const args = new Uint32Array(self.kwasm_memory.buffer, arg_data_ptr, args_length);
+            let f = kwasm_js_objects[function_object];
+            let this_object0 = kwasm_js_objects[this_object];
+            let result = f.call(this_object0, ...args);
+            if (result == undefined) {
+                return 0;
+            } else {
+                return kwasm_helpers.new_js_object(result);
+            }
+        },
+        kwasm_call_js_with_args: function (function_object, this_object, arg_data_ptr, args_length) {
+            const args = new Uint32Array(self.kwasm_memory.buffer, arg_data_ptr, args_length);
+            let f = kwasm_js_objects[function_object];
+            let this_object0 = kwasm_js_objects[this_object];
+            // Convert to Array first because Uint32Array's version of map
+            // expects a typed array as the return value.
+            let args0 = Array.from(args);
+            let args1 = args0.map(a => kwasm_js_objects[a]);
+            let result = f.call(this_object0, ...args1);
+            if (result == undefined) {
+                return 0;
+            } else {
+                return kwasm_helpers.new_js_object(result);
+            }
+        },
+        kwasm_js_object_property: function (object_index, property_name_index) {
+            let object = kwasm_js_objects[object_index];
+            let property_name = kwasm_js_objects[property_name_index];
             let property_object = object[property_name];
             if (property_object == undefined) {
                 console.log(object + " does not have property: " + property_name);
@@ -60,18 +86,6 @@ function kwasm_stuff() {
             } else {
                 return kwasm_helpers.new_js_object(property_object);
             }
-        },
-        kwasm_call_js_object_0_args: function (function_object, this_object) {
-            call_js(function_object, this_object)
-        },
-        kwasm_call_js_object_1_args: function (function_object, this_object, arg0) {
-            call_js(function_object, this_object, arg0)
-        },
-        kwasm_call_js_object_2_args: function (function_object, this_object, arg0, arg1) {
-            call_js(function_object, this_object, arg0, arg1)
-        },
-        kwasm_call_js_object_3_args: function (function_object, this_object, arg0, arg1, arg2) {
-            call_js(function_object, this_object, arg0, arg1, arg2)
         },
         kwasm_message_to_host: function (library, command, data, data_length) {
             // Creates a view into the memory
@@ -256,19 +270,12 @@ const kwasm_message_to_host = kwasm.kwasm_message_to_host;
 const kwasm_free_js_object = kwasm.kwasm_free_js_object;
 const kwasm_js_object_property = kwasm.kwasm_js_object_property;
 const kwasm_new_string = kwasm.kwasm_new_string;
-const kwasm_call_js_object_0_args = kwasm.kwasm_call_js_object_1_args;
-const kwasm_call_js_object_1_args = kwasm.kwasm_call_js_object_1_args;
-const kwasm_call_js_object_2_args = kwasm.kwasm_call_js_object_2_args;
-const kwasm_call_js_object_3_args = kwasm.kwasm_call_js_object_3_args;
+
 export {
     kwasm_message_to_host as kwasm_message_to_host,
     kwasm_free_js_object as kwasm_free_js_object,
     kwasm_js_object_property as kwasm_js_object_property,
     kwasm_new_string as kwasm_new_string,
-    kwasm_call_js_object_0_args as kwasm_call_js_object_0_args,
-    kwasm_call_js_object_1_args as kwasm_call_js_object_1_args,
-    kwasm_call_js_object_2_args as kwasm_call_js_object_2_args,
-    kwasm_call_js_object_3_args as kwasm_call_js_object_3_args,
 };
 export function kwasm_initialize_wasmbindgen(module, memory) {
     self.kwasm_module = module;

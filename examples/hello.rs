@@ -23,7 +23,8 @@ fn main() {
     const MESSAGE: JSString = JSString::new("HI WORLD!!!");
     log_function.call_1_arg(&console, &MESSAGE);
 
-    Console::log("LOGGING FROM THE CONSOLE");
+    console::log("LOGGING FROM THE CONSOLE");
 
-    Console::log_js_string2(&JSString::new("HELLO0"), &JSString::new("HELLO1"));
+    console::log_js_string2(&JSString::new("HELLO0"), &JSString::new("HELLO1"));
+    eval("console.log('EVAL SEEMS TO WORK')");
 }

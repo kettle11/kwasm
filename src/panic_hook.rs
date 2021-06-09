@@ -2,7 +2,7 @@ use std::panic;
 
 fn hook_impl(info: &panic::PanicInfo) {
     let message = info.to_string();
-    crate::log_error(&message);
+    crate::libraries::console::log_error(&message);
 }
 
 /// Sets up a panic hook to print a slightly more useful error-message to the console.
