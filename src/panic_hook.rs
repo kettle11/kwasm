@@ -6,7 +6,6 @@ fn hook_impl(info: &panic::PanicInfo) {
 }
 
 /// Sets up a panic hook to print a slightly more useful error-message to the console.
-#[inline]
 pub fn setup_panic_hook() {
     use std::sync::Once;
     static SET_HOOK: Once = Once::new();

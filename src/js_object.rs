@@ -86,21 +86,21 @@ impl JSObject {
     }
 
     /// Replaces the inner JSObject with the new JSObject.
-    pub(crate) fn swap(&self, object: &JSObject) {
+    pub fn swap(&self, object: &JSObject) {
         self.index.swap(&object.index)
     }
 
-    pub(crate) fn is_null(&self) -> bool {
+    pub fn is_null(&self) -> bool {
         self.index.get() == 0
     }
 
-    pub(crate) const fn null() -> Self {
+    pub const fn null() -> Self {
         Self {
             index: Cell::new(0),
         }
     }
 
-    pub(crate) const fn new_raw(index: u32) -> Self {
+    pub const fn new_raw(index: u32) -> Self {
         Self {
             index: Cell::new(index),
         }

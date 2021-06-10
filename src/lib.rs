@@ -10,9 +10,6 @@
 use std::cell::RefCell;
 use std::ffi::c_void;
 
-#[cfg(any(feature = "wasm_bindgen_support", target_feature = "atomics"))]
-use std::sync::Once;
-
 pub mod libraries {
     pub mod console;
     pub mod eval;
@@ -30,7 +27,6 @@ pub use js_object::*;
 #[cfg(target_feature = "atomics")]
 pub mod web_worker;
 
-pub type Command = u32;
 use libraries::eval;
 pub use panic_hook::setup_panic_hook;
 
@@ -62,19 +58,6 @@ pub fn available_threads() -> u32 {
 #[cfg(feature = "wasm_bindgen_support")]
 use wasm_bindgen::prelude::*;
 
-#[cfg_attr(
-    feature = "wasm_bindgen_support",
-    wasm_bindgen(module = "/js/kwasm.js")
-)]
-extern "C" {
-    pub fn kwasm_message_to_host(
-        library: u32,
-        command: Command,
-        data: *mut c_void,
-        data_length: u32,
-    ) -> u32;
-}
-
 /// Called by the host to reserve scratch space to pass data into kwasm.
 /// returns a pointer to the allocated data.
 #[no_mangle]
@@ -85,24 +68,6 @@ pub extern "C" fn kwasm_reserve_space(space: usize) -> *mut u8 {
         d.resize(space, 0);
         d.as_mut_ptr()
     })
-}
-
-#[cfg(feature = "wasm_bindgen_support")]
-fn initialize_kwasm_for_wasmbindgen() {
-    static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
-    THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
-        // Smuggle out the Wasm instance's exports right from under `wasm-bindgen`'s nose.
-        js_sys::eval("self.kwasm_exports = wasm.exports;").unwrap();
-
-        #[cfg_attr(
-            feature = "wasm_bindgen_support",
-            wasm_bindgen(module = "/js/kwasm.js")
-        )]
-        extern "C" {
-            pub fn kwasm_initialize_wasmbindgen(module: JsValue, function_table: JsValue);
-        }
-        kwasm_initialize_wasmbindgen(wasm_bindgen::module(), wasm_bindgen::memory());
-    });
 }
 
 // The main thread needs its thread local storage initialized.
@@ -120,7 +85,6 @@ static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
 pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
     unsafe {
         THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
-            // Command 3 gets thread local storage size, 4 gets thread local storage alignment.
             THREAD_LOCAL_STORAGE_SIZE = eval("self.kwasm_exports.__tls_size.value")
                 .unwrap()
                 .get_value_u32();
@@ -138,6 +102,9 @@ pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
     }
 }
 
+#[cfg(feature = "wasm_bindgen_support")]
+use wasm_bindgen::prelude::*;
+
 /// This is a horrible hack.
 /// wasm-bindgen immediately calls main if this isn't here, this gives kwasm a chance
 /// to setup and then main can be called from the Javascript side.
@@ -145,5 +112,52 @@ pub(crate) extern "C" fn kwasm_alloc_thread_local_storage() -> u32 {
 /// This could be skipped when using `wasm-bindgen` without workers.
 #[cfg_attr(feature = "wasm_bindgen_support", wasm_bindgen(start))]
 pub fn kwasm_fake_start() {
+    #[cfg(feature = "wasm_bindgen_support")]
     initialize_kwasm_for_wasmbindgen();
+}
+
+#[cfg(feature = "wasm_bindgen_support")]
+fn initialize_kwasm_for_wasmbindgen() {
+    use std::sync::Once;
+    static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
+    THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
+        // Smuggle out the Wasm instance's exports right from under `wasm-bindgen`'s nose.
+        js_sys::eval("self.kwasm_exports = wasm.exports;").unwrap();
+
+        #[cfg_attr(
+            feature = "wasm_bindgen_support",
+            wasm_bindgen(module = "/js/kwasm.js")
+        )]
+        extern "C" {
+            pub fn kwasm_initialize_wasmbindgen(module: JsValue, function_table: JsValue);
+        }
+        unsafe {
+            kwasm_initialize_wasmbindgen(wasm_bindgen::module(), wasm_bindgen::memory());
+        }
+    });
+}
+
+pub struct JSFunction {
+    source: String,
+    function: JSObject,
+}
+
+impl JSFunction {
+    pub const fn new(source: String) -> Self {
+        Self {
+            source,
+            function: JSObject::null(),
+        }
+    }
+
+    fn check_initialized(&self) {
+        if self.function.is_null() {
+            self.function.swap(&eval(&self.source).unwrap())
+        }
+    }
+
+    pub fn call_raw(&self, this: &impl JSObjectTrait, args: &[u32]) -> Option<JSObject> {
+        self.check_initialized();
+        self.function.call_raw(this, args)
+    }
 }

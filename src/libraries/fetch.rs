@@ -1,11 +1,10 @@
-use crate::libraries::eval;
 use crate::*;
 use std::task::{Context, Poll, Waker};
 use std::{future::Future, sync::Arc};
 use std::{pin::Pin, sync::Mutex};
 
 thread_local! {
-    static FETCH_FUNCTION: JSObject = JSObject::null();
+    static FETCH_FUNCTION: JSFunction = JSFunction::new(String::from(include_str!("fetch.js")));
 }
 
 pub async fn fetch(path: &str) -> Result<Vec<u8>, ()> {
@@ -47,9 +46,6 @@ impl<'a> Future for FetchFuture {
             let js_string = JSString::new(&inner.path);
 
             FETCH_FUNCTION.with(|f| {
-                if f.is_null() {
-                    f.swap(&eval(include_str!("fetch.js")).unwrap())
-                }
                 f.call_raw(
                     &JSObject::null(),
                     &[js_string.get_js_object().index(), raw_ptr as u32],
