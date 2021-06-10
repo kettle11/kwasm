@@ -27,7 +27,7 @@ pub use js_object::*;
 #[cfg(target_feature = "atomics")]
 pub mod web_worker;
 
-use libraries::eval;
+use libraries::{console, eval};
 pub use panic_hook::setup_panic_hook;
 
 thread_local! {
@@ -122,7 +122,7 @@ fn initialize_kwasm_for_wasmbindgen() {
     static THREAD_LOCAL_STORAGE_METADATA_INIT: Once = Once::new();
     THREAD_LOCAL_STORAGE_METADATA_INIT.call_once(|| {
         // Smuggle out the Wasm instance's exports right from under `wasm-bindgen`'s nose.
-        js_sys::eval("self.kwasm_exports = wasm.exports;").unwrap();
+        js_sys::eval("self.kwasm_exports = wasm;").unwrap();
 
         #[cfg_attr(
             feature = "wasm_bindgen_support",
@@ -152,7 +152,9 @@ impl JSFunction {
 
     fn check_initialized(&self) {
         if self.function.is_null() {
-            self.function.swap(&eval(&self.source).unwrap())
+            self.function.swap(
+                &eval(&self.source).unwrap_or_else(|| panic!("Function source returned null")),
+            )
         }
     }
 

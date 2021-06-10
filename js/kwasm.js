@@ -124,7 +124,7 @@ function kwasm_stuff() {
             self.kwasm_module = results.module;
 
             // Setup thread-local storage for the main thread
-            if (kwasm_exports.kwasm_alloc_thread_local_storage) {
+            if (self.kwasm_exports.kwasm_alloc_thread_local_storage) {
                 const thread_local_storage = kwasm_exports.kwasm_alloc_thread_local_storage();
                 self.kwasm_exports.__wasm_init_tls(thread_local_storage);
             }
@@ -224,5 +224,4 @@ export {
 export function kwasm_initialize_wasmbindgen(module, memory) {
     self.kwasm_module = module;
     self.kwasm_memory = memory;
-    self.kwasm_exports = document.kwasm_exports;
 }

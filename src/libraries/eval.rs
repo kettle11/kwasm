@@ -12,6 +12,6 @@ pub fn eval(source: &str) -> Option<JSObject> {
             const EVAL_STR: JSString = JSString::new("eval");
             e.swap(&JS_SELF.get_property(&EVAL_STR));
         }
-        e.call_1_arg(&JS_SELF, &source_str)
+        e.call_1_arg(&JSObject::null(), &source_str)
     })
 }

@@ -5,10 +5,10 @@ let result = function (string_index, callback_pointer) {
     fetch(path)
         .then(async response => {
             let result = await response.arrayBuffer();
-            let pointer = kwasm_exports.kwasm_reserve_space(result.byteLength);
+            let pointer = self.kwasm_exports.kwasm_reserve_space(result.byteLength);
             let destination = new Uint8Array(kwasm_memory.buffer, pointer, result.byteLength);
             destination.set(new Uint8Array(result));
-            kwasm_exports.kwasm_complete_fetch(callback_pointer);
+            self.kwasm_exports.kwasm_complete_fetch(callback_pointer);
         });
 };
 
