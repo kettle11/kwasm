@@ -1,4 +1,4 @@
-use std::{cell::Cell, ffi::c_void};
+use std::{cell::Cell, ffi::c_void, ops::Deref};
 
 #[cfg(feature = "wasm_bindgen_support")]
 use wasm_bindgen::prelude::*;
@@ -24,6 +24,7 @@ extern "C" {
         args_data: *const c_void,
         data_length: u32,
     ) -> u32;
+    #[cfg(target_feature = "atomics")]
     pub(crate) fn kwasm_new_worker(
         entry_point: u32,
         stack_pointer: u32,
@@ -65,12 +66,13 @@ pub struct JSObject {
 }
 
 impl JSObject {
-    pub fn get_property(&self, string: &JSString) -> Self {
+    pub fn get_property(&self, string: &str) -> Self {
+        let string = JSString::new(string);
         unsafe {
             Self {
                 index: Cell::new(kwasm_js_object_property(
                     self.index.get(),
-                    string.get_js_object().index.get(),
+                    string.index.get(),
                 )),
             }
         }
@@ -118,41 +120,25 @@ impl JSObject {
     }
 
     /// Call a function with a series of u32s as
-    pub fn call_raw(&self, this: &impl JSObjectTrait, args: &[u32]) -> Option<Self> {
+    pub fn call_raw(&self, this: &JSObject, args: &[u32]) -> Option<Self> {
+        let result = kwasm_call_js_with_args_raw0(self.index.get(), this.index.get(), args);
+        Self::check_result(result)
+    }
+
+    /// Call this as a function with one arg.
+    pub fn call_1_arg(&self, this: &JSObject, argument: &JSObject) -> Option<Self> {
         let result =
-            kwasm_call_js_with_args_raw0(self.index.get(), this.get_js_object().index.get(), args);
-        Self::check_result(result)
-    }
-
-    /// Call this as a function with one arg.
-    pub fn call_1_arg(
-        &self,
-        this: &impl JSObjectTrait,
-        argument: &impl JSObjectTrait,
-    ) -> Option<Self> {
-        let result = kwasm_call_js_with_args0(
-            self.index.get(),
-            this.get_js_object().index.get(),
-            &[argument.get_js_object().index.get()],
-        );
+            kwasm_call_js_with_args0(self.index.get(), this.index.get(), &[argument.index.get()]);
 
         Self::check_result(result)
     }
 
     /// Call this as a function with one arg.
-    pub fn call_2_arg(
-        &self,
-        this: &impl JSObjectTrait,
-        arg0: &impl JSObjectTrait,
-        arg1: &impl JSObjectTrait,
-    ) -> Option<Self> {
+    pub fn call_2_arg(&self, this: &JSObject, arg0: &JSObject, arg1: &JSObject) -> Option<Self> {
         let result = kwasm_call_js_with_args0(
             self.index.get(),
-            this.get_js_object().index.get(),
-            &[
-                arg0.get_js_object().index.get(),
-                arg1.get_js_object().index.get(),
-            ],
+            this.index.get(),
+            &[arg0.index.get(), arg1.index.get()],
         );
 
         Self::check_result(result)
@@ -162,16 +148,6 @@ impl JSObject {
 impl Drop for JSObject {
     fn drop(&mut self) {
         unsafe { kwasm_free_js_object(self.index.get()) }
-    }
-}
-
-pub trait JSObjectTrait {
-    fn get_js_object(&self) -> &JSObject;
-}
-
-impl JSObjectTrait for JSObject {
-    fn get_js_object(&self) -> &JSObject {
-        self
     }
 }
 
@@ -189,9 +165,9 @@ impl<'a> JSString<'a> {
     }
 }
 
-impl<'a> JSObjectTrait for JSString<'a> {
-    /// This function defers creation of the JSString until it's actually needed.
-    fn get_js_object(&self) -> &JSObject {
+impl<'a> Deref for JSString<'a> {
+    type Target = JSObject;
+    fn deref(&self) -> &Self::Target {
         if self.js_object.is_null() {
             let new_object = JSObject::new_raw(unsafe {
                 kwasm_new_string(self.string.as_ptr(), self.string.len() as u32)

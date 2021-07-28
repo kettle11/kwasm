@@ -44,16 +44,13 @@ function kwasm_stuff() {
         },
         // Calls a function but directly passes the u32 args instead of turning
         // them into JS objects first.
+        // This expects that the function will return a u32.
         kwasm_call_js_with_args_raw: function (function_object, this_object, arg_data_ptr, args_length) {
             const args = new Uint32Array(self.kwasm_memory.buffer, arg_data_ptr, args_length);
             let f = kwasm_js_objects[function_object];
             let this_object0 = kwasm_js_objects[this_object];
             let result = f.call(this_object0, ...args);
-            if (result == undefined) {
-                return 0;
-            } else {
-                return self.kwasm_new_js_object(result);
-            }
+            result
         },
         kwasm_call_js_with_args: function (function_object, this_object, arg_data_ptr, args_length) {
             const args = new Uint32Array(self.kwasm_memory.buffer, arg_data_ptr, args_length);

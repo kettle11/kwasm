@@ -8,7 +8,7 @@
 //! Kwasm uses eval to initialize Javascript code from Rust libraries.
 
 use std::cell::RefCell;
-use std::ffi::c_void;
+use std::ops::Deref;
 
 pub mod libraries {
     pub mod console;
@@ -27,7 +27,10 @@ pub use js_object::*;
 #[cfg(target_feature = "atomics")]
 pub mod web_worker;
 
-use libraries::{console, eval};
+#[cfg(target_feature = "atomics")]
+use std::sync::Once;
+
+use libraries::eval;
 pub use panic_hook::setup_panic_hook;
 
 thread_local! {
@@ -137,29 +140,40 @@ fn initialize_kwasm_for_wasmbindgen() {
     });
 }
 
-pub struct JSFunction {
+pub struct JSObjectFromString {
     source: String,
-    function: JSObject,
+    inner_object: JSObject,
 }
 
-impl JSFunction {
-    pub const fn new(source: String) -> Self {
+impl JSObjectFromString {
+    pub fn new(source: &str) -> Self {
         Self {
-            source,
-            function: JSObject::null(),
+            source: String::from(source),
+            inner_object: JSObject::null(),
         }
     }
 
     fn check_initialized(&self) {
-        if self.function.is_null() {
-            self.function.swap(
-                &eval(&self.source).unwrap_or_else(|| panic!("Function source returned null")),
+        if self.inner_object.is_null() {
+            self.inner_object.swap(
+                &eval(&self.source)
+                    .unwrap_or_else(|| panic!("JSObjectFromString code source returned null")),
             )
         }
     }
 
-    pub fn call_raw(&self, this: &impl JSObjectTrait, args: &[u32]) -> Option<JSObject> {
+    /*
+    pub fn inner_object(&self) -> &JSObject {
         self.check_initialized();
-        self.function.call_raw(this, args)
+        &self.inner_object
+    }
+    */
+}
+
+impl Deref for JSObjectFromString {
+    type Target = JSObject;
+    fn deref(&self) -> &Self::Target {
+        self.check_initialized();
+        &self.inner_object
     }
 }

@@ -4,7 +4,7 @@ use std::{future::Future, sync::Arc};
 use std::{pin::Pin, sync::Mutex};
 
 thread_local! {
-    static FETCH_FUNCTION: JSFunction = JSFunction::new(String::from(include_str!("fetch.js")));
+    static FETCH_FUNCTION: JSObjectFromString = JSObjectFromString::new(include_str!("fetch.js"));
 }
 
 pub async fn fetch(path: &str) -> Result<Vec<u8>, ()> {
@@ -45,12 +45,8 @@ impl<'a> Future for FetchFuture {
 
             let js_string = JSString::new(&inner.path);
 
-            FETCH_FUNCTION.with(|f| {
-                f.call_raw(
-                    &JSObject::null(),
-                    &[js_string.get_js_object().index(), raw_ptr as u32],
-                )
-            });
+            FETCH_FUNCTION
+                .with(|f| f.call_raw(&JSObject::null(), &[js_string.index(), raw_ptr as u32]));
         }
 
         if let Some(v) = inner.result.take() {
