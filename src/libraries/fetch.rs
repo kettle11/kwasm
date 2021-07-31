@@ -46,7 +46,7 @@ impl<'a> Future for FetchFuture {
             let js_string = JSString::new(&inner.path);
 
             FETCH_FUNCTION
-                .with(|f| f.call_raw(&JSObject::null(), &[js_string.index(), raw_ptr as u32]));
+                .with(|f| f.call_raw(&JSObject::NULL, &[js_string.index(), raw_ptr as u32]));
         }
 
         if let Some(v) = inner.result.take() {

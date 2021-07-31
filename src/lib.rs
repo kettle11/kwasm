@@ -149,7 +149,7 @@ impl JSObjectFromString {
     pub fn new(source: &str) -> Self {
         Self {
             source: String::from(source),
-            inner_object: JSObject::null(),
+            inner_object: JSObject::NULL,
         }
     }
 
@@ -176,4 +176,11 @@ impl Deref for JSObjectFromString {
         self.check_initialized();
         &self.inner_object
     }
+}
+
+pub fn get_string_from_host() -> String {
+    DATA_FROM_HOST.with(|d| {
+        let d = d.take();
+        String::from_utf8(d).unwrap()
+    })
 }

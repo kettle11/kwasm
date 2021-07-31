@@ -61,11 +61,16 @@ pub const JS_SELF: JSObject = JSObject {
     index: Cell::new(1),
 };
 
+#[derive(Debug, Clone)]
 pub struct JSObject {
     index: Cell<u32>,
 }
 
 impl JSObject {
+    pub const NULL: Self = JSObject {
+        index: Cell::new(0),
+    };
+
     pub fn get_property(&self, string: &str) -> Self {
         let string = JSString::new(string);
         unsafe {
@@ -96,12 +101,6 @@ impl JSObject {
         self.index.get() == 0
     }
 
-    pub const fn null() -> Self {
-        Self {
-            index: Cell::new(0),
-        }
-    }
-
     pub const fn new_raw(index: u32) -> Self {
         Self {
             index: Cell::new(index),
@@ -119,9 +118,15 @@ impl JSObject {
         }
     }
 
-    /// Call a function with a series of u32s as
+    /// Call a function with each u32 passed as a separate argument to the JavaScript side.
     pub fn call_raw(&self, this: &JSObject, args: &[u32]) -> Option<Self> {
         let result = kwasm_call_js_with_args_raw0(self.index.get(), this.index.get(), args);
+        Self::check_result(result)
+    }
+
+    /// Call this as a function with one arg.
+    pub fn call(&self, this: &JSObject) -> Option<Self> {
+        let result = kwasm_call_js_with_args0(self.index.get(), this.index.get(), &[]);
         Self::check_result(result)
     }
 
@@ -160,7 +165,15 @@ impl<'a> JSString<'a> {
     pub const fn new(string: &'a str) -> Self {
         JSString {
             string,
-            js_object: JSObject::null(),
+            js_object: JSObject::NULL,
+        }
+    }
+    pub fn new_from_string(string: String) -> Self {
+        let js_object =
+            JSObject::new_raw(unsafe { kwasm_new_string(string.as_ptr(), string.len() as u32) });
+        JSString {
+            string: "",
+            js_object,
         }
     }
 }

@@ -50,6 +50,11 @@ function kwasm_stuff() {
             let f = kwasm_js_objects[function_object];
             let this_object0 = kwasm_js_objects[this_object];
             let result = f.call(this_object0, ...args);
+            if (result == undefined) {
+                return 0;
+            } else {
+                return self.kwasm_new_js_object(result);
+            }
             result
         },
         kwasm_call_js_with_args: function (function_object, this_object, arg_data_ptr, args_length) {
