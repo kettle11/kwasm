@@ -87,6 +87,10 @@ function kwasm_stuff() {
         kwasm_get_js_object_value_u32: function (object_index) {
             return kwasm_js_objects[object_index];
         },
+        // Returns this value as a f64
+        kwasm_get_js_object_value_f64: function (object_index) {
+            return kwasm_js_objects[object_index];
+        },
         kwasm_new_worker: function (entry_point, stack_pointer, thread_local_storage_pointer) {
             let worker = new Worker(kwasm_stuff_blob);
             worker.postMessage({
@@ -213,6 +217,8 @@ const kwasm_call_js_with_args_raw = kwasm.kwasm_call_js_with_args_raw;
 const kwasm_call_js_with_args = kwasm.kwasm_call_js_with_args;
 const kwasm_js_object_property = kwasm.kwasm_js_object_property;
 const kwasm_get_js_object_value_u32 = kwasm.kwasm_get_js_object_value_u32;
+const kwasm_get_js_object_value_f64 = kwasm.kwasm_get_js_object_value_f64;
+
 const kwasm_new_worker = kwasm.kwasm_new_worker;
 export {
     kwasm_free_js_object as kwasm_free_js_object,
@@ -221,6 +227,7 @@ export {
     kwasm_call_js_with_args as kwasm_call_js_with_args,
     kwasm_js_object_property as kwasm_js_object_property,
     kwasm_get_js_object_value_u32 as kwasm_get_js_object_value_u32,
+    kwasm_get_js_object_value_f64 as kwasm_get_js_object_value_f64,
     kwasm_new_worker as kwasm_new_worker
 };
 export function kwasm_initialize_wasmbindgen(module, memory) {

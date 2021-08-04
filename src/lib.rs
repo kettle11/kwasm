@@ -14,9 +14,11 @@ pub mod libraries {
     pub mod console;
     pub mod eval;
     pub mod fetch;
+    pub mod instant;
     pub use console::*;
     pub use eval::*;
     pub use fetch::*;
+    pub use instant::*;
 }
 
 mod js_object;
